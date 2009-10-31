@@ -2,6 +2,14 @@
 <interface>
   <requires lib="gtk+" version="2.16"/>
   <!-- interface-naming-policy project-wide -->
+  <object class="GtkListStore" id="filestore">
+    <columns>
+      <!-- column-name Filename -->
+      <column type="gchararray"/>
+      <!-- column-name Size -->
+      <column type="gint"/>
+    </columns>
+  </object>
   <object class="GtkWindow" id="main_window">
     <property name="title" translatable="yes">NXT Mindstorm Toolbox</property>
     <child>
@@ -134,19 +142,21 @@
             <property name="position">1</property>
           </packing>
         </child>
+        <child>
+          <object class="GtkStatusbar" id="statusbar1">
+            <property name="visible">True</property>
+            <property name="spacing">2</property>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="position">2</property>
+          </packing>
+        </child>
       </object>
     </child>
   </object>
   <object class="GtkImage" id="image1">
     <property name="visible">True</property>
     <property name="stock">gtk-go-forward</property>
-  </object>
-  <object class="GtkListStore" id="filestore">
-    <columns>
-      <!-- column-name Filename -->
-      <column type="gchararray"/>
-      <!-- column-name Size -->
-      <column type="gint"/>
-    </columns>
   </object>
 </interface>
