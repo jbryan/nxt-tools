@@ -10,8 +10,15 @@
       <column type="gint"/>
     </columns>
   </object>
+  <object class="GtkListStore" id="nxtstore">
+    <columns>
+      <!-- column-name host -->
+      <column type="gchararray"/>
+    </columns>
+  </object>
   <object class="GtkWindow" id="main_window">
     <property name="title" translatable="yes">NXT Mindstorm Toolbox</property>
+    <signal name="destroy" handler="on_exit_activate"/>
     <child>
       <object class="GtkVBox" id="vbox1">
         <property name="visible">True</property>
@@ -31,7 +38,7 @@
                       <object class="GtkImageMenuItem" id="imagemenuitem2">
                         <property name="label">gtk-connect</property>
                         <property name="visible">True</property>
-                        <property name="use_underline">True</property>
+                        <property name="related_action">open_connect_dialog</property>
                         <property name="use_stock">True</property>
                       </object>
                     </child>
@@ -57,9 +64,10 @@
                       </object>
                     </child>
                     <child>
-                      <object class="GtkImageMenuItem" id="imagemenuitem5">
+                      <object class="GtkImageMenuItem" id="menu_quit">
                         <property name="label">gtk-quit</property>
                         <property name="visible">True</property>
+                        <property name="related_action">exit</property>
                         <property name="use_underline">True</property>
                         <property name="use_stock">True</property>
                       </object>
@@ -158,5 +166,77 @@
   <object class="GtkImage" id="image1">
     <property name="visible">True</property>
     <property name="stock">gtk-go-forward</property>
+  </object>
+  <object class="GtkDialog" id="connect_dialog">
+    <property name="border_width">5</property>
+    <property name="type_hint">normal</property>
+    <property name="has_separator">False</property>
+    <child internal-child="vbox">
+      <object class="GtkVBox" id="dialog-vbox1">
+        <property name="visible">True</property>
+        <property name="orientation">vertical</property>
+        <property name="spacing">2</property>
+        <child>
+          <object class="GtkTreeView" id="treeview2">
+            <property name="visible">True</property>
+            <property name="can_focus">True</property>
+            <property name="model">nxtstore</property>
+          </object>
+          <packing>
+            <property name="position">1</property>
+          </packing>
+        </child>
+        <child internal-child="action_area">
+          <object class="GtkHButtonBox" id="dialog-action_area1">
+            <property name="visible">True</property>
+            <property name="layout_style">end</property>
+            <child>
+              <object class="GtkButton" id="connect">
+                <property name="label">gtk-connect</property>
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="receives_default">True</property>
+                <property name="use_stock">True</property>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="fill">False</property>
+                <property name="position">0</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkButton" id="connect_cancel">
+                <property name="label">gtk-cancel</property>
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="receives_default">True</property>
+                <property name="use_stock">True</property>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="fill">False</property>
+                <property name="position">1</property>
+              </packing>
+            </child>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="pack_type">end</property>
+            <property name="position">0</property>
+          </packing>
+        </child>
+      </object>
+    </child>
+    <action-widgets>
+      <action-widget response="0">connect</action-widget>
+      <action-widget response="0">connect_cancel</action-widget>
+    </action-widgets>
+  </object>
+  <object class="GtkAction" id="exit">
+    <property name="label">Quit</property>
+    <signal name="activate" handler="on_exit_activate"/>
+  </object>
+  <object class="GtkAction" id="open_connect_dialog">
+    <signal name="activate" handler="on_open_connect_dialog_activate"/>
   </object>
 </interface>
