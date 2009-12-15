@@ -17,6 +17,8 @@ import nxt.brick
 from nxt.error import *
 
 
+logging.basicConfig(filename="nxt_fs.log",level=logging.DEBUG)
+
 class NxtStat(fuse.Stat):
   def __init__(self):
     self.st_mode = 0
@@ -32,15 +34,17 @@ class NxtStat(fuse.Stat):
 
 class NxtFS(Fuse):
   """
+  A Fuse based file system that allows for cached random access to 
+  files on a Lego(r) NXT brick.
   """
 
   def __init__(self, *args, **kw):
     Fuse.__init__(self, *args, **kw)
-    
-    logging.basicConfig(filename="nxt_fs.log",level=logging.DEBUG)
-    logging.debug('Looking for a brick')
 
     self.file_cache = {}
+    self.mounttime = int(time())
+
+    logging.debug('Looking for a brick')
 
     sock = nxt.locator.find_one_brick()
     logging.debug('Found %s, trying to connect..' % sock)
@@ -50,6 +54,9 @@ class NxtFS(Fuse):
   def getattr(self, path, *args):
     logging.debug("getattr(%s,%s)" % (path,str(args)))
     st = NxtStat()
+    st.st_atime = self.mounttime
+    st.st_ctime = self.mounttime
+    st.st_mtime = self.mounttime
     if path in ['/','.']:
       st.st_mode = stat.S_IFDIR | 0755
       st.st_nlink = 2
@@ -115,7 +122,7 @@ class NxtFS(Fuse):
           for bytes in f:
             buf += bytes
           self.file_cache[path] = (StringIO(buf), flags)
-          logging.debug(buf)
+          logging.debug("read %i bytes" % len(buf))
       except Exception as e:
         logging.error(e)
         return -errno.ENOENT
@@ -146,19 +153,6 @@ class NxtFS(Fuse):
 
   def flush(self, path,*args):
     logging.debug("flush(%s)"%path)
-    try:
-      if path in self.file_cache:
-        logging.debug("file is open and being flushed")
-        stio, flags = self.file_cache[path]
-        """TODO: We could optimize for append here """
-        if flags & (os.O_WRONLY | os.O_RDWR | os.O_APPEND):
-          try:
-            self._send_file(path[1:],stio)
-          except:
-            self._brick.delete(path[1:])
-            self._send_file(path[1:],stio)
-    except Exception as e:
-      logging.error(e)
     return 0
 
   def _send_file(self, path, file):
@@ -170,8 +164,9 @@ class NxtFS(Fuse):
   def release(self, path,*args):
     logging.debug("release(%s)"%path)
     if path in self.file_cache:
+      ret = self.fsync(path,False)
       del self.file_cache[path]
-    return 0
+    return ret
 
   def truncate(self, path, size,*args):
     logging.debug("truncate(%s)"%path)
@@ -190,11 +185,48 @@ class NxtFS(Fuse):
 
   def rename(self, pathfrom, pathto,*args):
     logging.debug("rename(%s,%s)"%(pathfrom,pathto))
-    return -errno.ENOSYS
+    ret = self.open(pathfrom, os.O_RDWR)
+    if ret < 0: return ret
+
+    attr = self.getattr(pathto)
+    if hasattr(attr,'st_size'):
+      return -errno.EEXIST
+    
+    #move the file in memory
+    self.file_cache[pathto] = self.file_cache[pathfrom]
+    del(self.file_cache[pathfrom])
+
+    #Here we have a dilemma.  Should we flush the new file out
+    #first and then delete the old, or should we delete the old
+    #first?  The first method provides protects against 
+    #potential data loss, but the second doesn't require there
+    #to be significant amounts of free space on the nxt
+    #For now we will go with the first, but I may change my mind.
+
+    ret = self.release(pathto)
+    if ret < 0: return ret
+    return self.unlink(pathfrom)
+
 
   def fsync(self, path, isfsyncfile,*args):
     logging.debug("fsync(%s)"%path)
-    return self.flush(path)
+    try:
+      if path in self.file_cache:
+        stio, flags = self.file_cache[path]
+        """TODO: We could optimize for append here """
+        if flags & (os.O_WRONLY | os.O_RDWR | os.O_APPEND):
+          logging.debug("file is open and being flushed")
+          try:
+            self._send_file(path[1:],stio)
+          except:
+            self._brick.delete(path[1:])
+            self._send_file(path[1:],stio)
+        else:
+          logging.debug("File was read only, so nothing to sync")
+    except Exception as e:
+      logging.error(e)
+      return -errno.EIO
+    return 0
 
   def getdir(self, path, *args):
     logging.debug("getdir(%s)"%path)
