@@ -17,7 +17,7 @@ import nxt.brick
 from nxt.error import *
 
 
-logging.basicConfig(filename="nxt_fs.log",level=logging.DEBUG)
+#logging.basicConfig(filename="nxt_fs.log",level=logging.DEBUG)
 
 class NxtStat(fuse.Stat):
   def __init__(self):
