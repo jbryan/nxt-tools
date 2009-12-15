@@ -1,0 +1,3 @@
+To mount an autodiscovered NXT brick:
+
+python fuse/nxt_fs.py <mount-point>
