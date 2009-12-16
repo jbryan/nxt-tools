@@ -90,8 +90,9 @@ class NxtFS(Fuse):
     try:
       with nxt.brick.FileFinder(self._brick,'*.*') as f:
         for (fname, size) in f:
-          if "/" + fname not in self.file_cache:
-            yield fuse.Direntry(fname)
+          fname = ("/" + fname).replace("\x00","")
+          if fname not in self.file_cache:
+            yield fuse.Direntry(fname[1:])
     except Exception as e:
       logging.error(e)
 
@@ -137,6 +138,7 @@ class NxtFS(Fuse):
       stio, flags = self.file_cache[path]
       stio.seek(offset)
       stio.write(buf)
+      logging.debug("Wrote %i bytes"%len(buf))
       return len(buf)
     else:
       return -errno.ENOENT
@@ -156,7 +158,7 @@ class NxtFS(Fuse):
     return 0
 
   def _send_file(self, path, file):
-    with nxt.brick.FileWriter(self._brick, path, file) as f:
+    with nxt.brick.FileWriter(self._brick, path[1:], file) as f:
       for bytes in f:
         pass
 
@@ -217,10 +219,10 @@ class NxtFS(Fuse):
         if flags & (os.O_WRONLY | os.O_RDWR | os.O_APPEND):
           logging.debug("file is open and being flushed")
           try:
-            self._send_file(path[1:],stio)
+            self._send_file(path,stio)
           except:
             self._brick.delete(path[1:])
-            self._send_file(path[1:],stio)
+            self._send_file(path,stio)
         else:
           logging.debug("File was read only, so nothing to sync")
     except Exception as e:
