@@ -21,7 +21,7 @@ from nxt.error import *
 from nxt_fs import *
 
 
-logging.basicConfig(filename="nxt_fs.log",level=logging.DEBUG)
+#logging.basicConfig(filename="nxt_fs.log",level=logging.DEBUG)
 
 class NxtSysFile(object):
   def __init__(self,brick):
