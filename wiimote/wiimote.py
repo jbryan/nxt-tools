@@ -3,39 +3,54 @@
 import cwiid
 import nxt
 import nxt.motor
+import math
 from nxt.motor import *
 import nxt.locator
 
+from time import time
 from threading import Event
 
 
 class WiiNxtController(object):
+  # button event mappings.  This should be moved
+  # to a configuration file.
+  drive_motors = [PORT_B,PORT_C]
   BTN_EVENTS = {
     0: { 
-      'stop': ([PORT_B,PORT_C],)
+      'stop': ()
     },
     cwiid.BTN_UP: { 
-      'drive': (100,[PORT_B,PORT_C])
+      'drive': (100,0)
     },
     cwiid.BTN_DOWN: { 
-      'drive': (-100,[PORT_B,PORT_C])
+      'drive': (-100,0)
     },
     cwiid.BTN_LEFT: { 
-      'drive': (100,[PORT_B,])
+      'drive': (100,100)
     },
     cwiid.BTN_RIGHT: { 
-      'drive': (100,[PORT_C,])
+      'drive': (100,-100)
     },
     cwiid.BTN_1 | cwiid.BTN_2: {
       'exit': ()
-    }
+    },
+    cwiid.BTN_A: {
+      'toggle_acc': ()
+    },
+    cwiid.BTN_B: {
+      'play_sound': ('! Attention.rso',)
+    },
   }
+
+
+
 
   def __init__(self,wii,brick):
     self.wii = wii
     self.brick = brick
     self.wii.mesg_callback = self.handle
     self.quit = Event()
+    self.last_motor_command = time()
 
     self.load_motors()
 
@@ -44,18 +59,30 @@ class WiiNxtController(object):
     for motor in self.motors:
       motor.get_output_state
 
-  def handle(self,msg_list,time):
+  def handle(self,msg_list,timestamp):
     for msg in msg_list:
       type, data = msg
       if type == 1 and data in self.BTN_EVENTS:
         actions = self.BTN_EVENTS[data]
+        # for each function name and arguments
         for act,args in actions.iteritems():
           try:
+            # if we haven't quit yet, do it
+            # the quit check avoids a potential
+            # race
             if not self.quit.is_set():
               getattr(self,act)(*args)
           except Exception as e:
             print "Could not execute %s with %s" %(act,str(args))
             print e
+      elif type == 2 and (time()-self.last_motor_command) > 0.1:
+        roll,pitch = self.get_roll_pitch(data)
+        power = max(-100,min(100,(roll/(math.pi/2)*150)))
+        turn_ratio = max(-100,min(100,(pitch/(math.pi/2)*150)))
+        #print power, turn_ratio
+        self.drive(power, turn_ratio)
+
+
 
 
   def run(self):
@@ -71,29 +98,69 @@ class WiiNxtController(object):
     self.brick.sock.close()
 
   def exit(self):
-    for motor in self.motors:
-      motor.power = 0
-      motor.run_state = RUN_STATE_IDLE
-      motor.mode = MODE_IDLE
-      motor.set_output_state()
-
+    try:
+      for motor in self.motors:
+        motor.power = 0
+        motor.run_state = RUN_STATE_IDLE
+        motor.mode = MODE_IDLE
+        motor.set_output_state()
+    except:
+      pass
     self.quit.set()
 
-  def stop(self,mtrs):
-    for m in mtrs:
-      self.motors[m].run_state = RUN_STATE_IDLE
-      #self.motors[m].mode = MODE_IDLE
+  def stop(self):
+    for m in self.drive_motors:
+      #self.motors[m].run_state = RUN_STATE_IDLE
+      self.motors[m].mode = MODE_IDLE
       self.motors[m].power = 0
       self.motors[m].set_output_state()
+      
+    self.last_motor_command = time()
 
-  def drive(self, power, mtrs):
-    for m in mtrs:
-      self.motors[m].mode = MODE_MOTOR_ON
+  def drive(self, power, turn_ratio):
+    for m in self.drive_motors:
+      self.brick.reset_motor_position(m,True)
+      self.motors[m].mode = MODE_MOTOR_ON | MODE_REGULATED
       self.motors[m].power = power
+      self.motors[m].turn_ratio = turn_ratio
       self.motors[m].regulation = REGULATION_MOTOR_SYNC
       self.motors[m].run_state = RUN_STATE_RUNNING
       self.motors[m].set_output_state()
+      
+    self.last_motor_command = time()
 
+  def play_sound(self, file):
+    self.brick.play_sound_file(False, file)
+
+  def toggle_acc(self):
+    rpt_mode = self.wii.state['rpt_mode']
+    self.wii.rpt_mode = rpt_mode ^ cwiid.RPT_ACC
+
+  def get_roll_pitch(self,data):
+    x,y,z = data
+    #normalize acc data
+    call_zero,call_one = self.wii.get_acc_cal(cwiid.EXT_NONE)
+    a_x = float(x - call_zero[0])/(call_one[0] - call_zero[0])
+    a_y = float(y - call_zero[1])/(call_one[1] - call_zero[1])
+    a_z = float(z - call_zero[2])/(call_one[2] - call_zero[2])
+
+    if (a_z != 0):
+      roll = math.atan(float(a_x)/a_z)
+    else:
+      roll = math.pi/2
+
+    if (a_z <= 0):
+      roll += math.pi * math.copysign(1,a_x)
+
+    if (a_z != 0):
+      pitch = math.atan(float(a_y)/a_z)
+    else:
+      pitch = math.pi/2
+
+    if (a_z <= 0):
+      pitch += math.pi * math.copysign(1,a_y)
+
+    return roll,pitch
 
 
 
