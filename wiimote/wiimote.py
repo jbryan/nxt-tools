@@ -7,7 +7,7 @@ import math
 from nxt.motor import *
 import nxt.locator
 
-from time import time
+from time import time, sleep
 from threading import Event
 
 
@@ -173,6 +173,13 @@ if __name__ == "__main__":
   print "Searching for a brick."
   sock = nxt.locator.find_one_brick()
   print "Found brick: %s" % sock
-  brick = sock.connect()
+  try:
+    brick = sock.connect()
+  except:
+    # Sometimes, we need to wait a bit so the bt layer catches up
+    print "First connect attempt failed, waiting 2 secs."
+    sleep(2)
+    brick = sock.connect()
+  print "Connected to nxt ... starting remote control."
   WiiNxtController(wii,brick).run()
   
