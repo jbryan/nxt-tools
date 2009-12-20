@@ -41,7 +41,9 @@ class NxtRunningProgram(NxtSysFile):
 
   def write(self,data):
     try:
-      self.brick.start_program(data.strip())
+      prg_file = os.path.basename(data.strip())
+      logging.debug("Executin file: '%s'"%prg_file)
+      self.brick.start_program(prg_file)
     except Exception as e:
       logging.error(e)
       self.brick.stop_program()
@@ -52,8 +54,9 @@ class NxtPlayingSound(NxtSysFile):
     NxtSysFile.__init__(self,brick)
 
   def write(self,data):
-    logging.debug("Playing file: '%s'"%data)
-    self.brick.play_sound_file(False,data.strip())
+    snd_file = os.path.basename(data.strip())
+    logging.debug("Playing file: '%s'"%snd_file)
+    self.brick.play_sound_file(False,snd_file)
 
 class NxtBatteryLevel(NxtSysFile):
   path = "/sys/battery_level"
