@@ -20,16 +20,28 @@ class WiiNxtController(object):
       'stop': ()
     },
     cwiid.BTN_UP: { 
-      'drive': (100,0)
+      'drive_reg': (100,0)
     },
     cwiid.BTN_DOWN: { 
-      'drive': (-100,0)
+      'drive_reg': (-100,0)
     },
     cwiid.BTN_LEFT: { 
-      'drive': (100,100)
+      'drive_reg': (100,100)
     },
     cwiid.BTN_RIGHT: { 
-      'drive': (100,-100)
+      'drive_reg': (100,-100)
+    },
+    cwiid.BTN_RIGHT | cwiid.BTN_UP: {
+      'drive_reg': (100,-30),
+    },
+    cwiid.BTN_LEFT | cwiid.BTN_UP: {
+      'drive_reg': (100,30),
+    },
+    cwiid.BTN_RIGHT | cwiid.BTN_DOWN: {
+      'drive_reg': (-100,-30),
+    },
+    cwiid.BTN_LEFT | cwiid.BTN_DOWN: {
+      'drive_reg': (-100,30),
     },
     cwiid.BTN_1 | cwiid.BTN_2: {
       'exit': ()
@@ -50,9 +62,13 @@ class WiiNxtController(object):
     self.brick = brick
     self.wii.mesg_callback = self.handle
     self.quit = Event()
+
     self.last_motor_command = time()
+    self.last_roll = 0
+    self.last_pitch = 0
 
     self.load_motors()
+    self.call_zero,self.call_one = self.wii.get_acc_cal(cwiid.EXT_NONE)
 
   def load_motors(self):
     self.motors = [Motor(self.brick,m) for m in xrange(0,3)]
@@ -67,7 +83,7 @@ class WiiNxtController(object):
         # for each function name and arguments
         for act,args in actions.iteritems():
           try:
-            # if we haven't quit yet, do it
+            # if we haven't quit yet, do the action
             # the quit check avoids a potential
             # race
             if not self.quit.is_set():
@@ -75,12 +91,28 @@ class WiiNxtController(object):
           except Exception as e:
             print "Could not execute %s with %s" %(act,str(args))
             print e
-      elif type == 2 and (time()-self.last_motor_command) > 0.1:
-        roll,pitch = self.get_roll_pitch(data)
-        power = max(-100,min(100,(roll/(math.pi/2)*150)))
-        turn_ratio = max(-100,min(100,(pitch/(math.pi/2)*150)))
-        #print power, turn_ratio
-        self.drive(power, turn_ratio)
+      elif type == 2:
+        if ((time()-self.last_motor_command) > 0.1):
+          roll,pitch = self.get_roll_pitch(data)
+
+          diff_r = abs(self.last_roll - roll)
+          diff_p = abs(self.last_pitch - pitch)
+
+          if (diff_r > 0.2 or diff_p > 0.2):
+            self.last_roll,self.last_pitch = roll, pitch
+            power = roll/(math.pi/2)*150
+            turn_ratio = max(-100,min(100,(pitch/(math.pi/2)*150)))
+
+            left = power - turn_ratio
+            right = power + turn_ratio
+
+            left = max(-100,min(100,left))
+            right = max(-100,min(100,right))
+            # put the left/right motor powers into a 
+            # dict of MOTOR_NUM => power
+            motor_power = dict(zip(self.drive_motors,(left,right)))
+            #print power, turn_ratio
+            self.drive_unreg(motor_power)
 
 
 
@@ -117,7 +149,7 @@ class WiiNxtController(object):
       
     self.last_motor_command = time()
 
-  def drive(self, power, turn_ratio):
+  def drive_reg(self, power, turn_ratio):
     for m in self.drive_motors:
       self.brick.reset_motor_position(m,True)
       self.motors[m].mode = MODE_MOTOR_ON | MODE_REGULATED
@@ -127,6 +159,17 @@ class WiiNxtController(object):
       self.motors[m].run_state = RUN_STATE_RUNNING
       self.motors[m].set_output_state()
       
+    self.last_motor_command = time()
+
+  def drive_unreg(self, motor_power):
+    for m, power in motor_power.iteritems():
+      self.brick.reset_motor_position(m,True)
+      self.motors[m].mode = MODE_MOTOR_ON 
+      self.motors[m].power = power
+      self.motors[m].turn_ratio = 0
+      self.motors[m].run_state = RUN_STATE_RUNNING
+      self.motors[m].set_output_state()
+
     self.last_motor_command = time()
 
   def play_sound(self, file):
@@ -139,10 +182,9 @@ class WiiNxtController(object):
   def get_roll_pitch(self,data):
     x,y,z = data
     #normalize acc data
-    call_zero,call_one = self.wii.get_acc_cal(cwiid.EXT_NONE)
-    a_x = float(x - call_zero[0])/(call_one[0] - call_zero[0])
-    a_y = float(y - call_zero[1])/(call_one[1] - call_zero[1])
-    a_z = float(z - call_zero[2])/(call_one[2] - call_zero[2])
+    a_x = float(x - self.call_zero[0])/(self.call_one[0] - self.call_zero[0])
+    a_y = float(y - self.call_zero[1])/(self.call_one[1] - self.call_zero[1])
+    a_z = float(z - self.call_zero[2])/(self.call_one[2] - self.call_zero[2])
 
     if (a_z != 0):
       roll = math.atan(float(a_x)/a_z)
