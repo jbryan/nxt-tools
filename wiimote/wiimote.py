@@ -92,7 +92,7 @@ class WiiNxtController(object):
             print "Could not execute %s with %s" %(act,str(args))
             print e
       elif type == 2:
-        if ((time()-self.last_motor_command) > 0.1):
+        if ((time()-self.last_motor_command) > 0.05):
           roll,pitch = self.get_roll_pitch(data)
 
           diff_r = abs(self.last_roll - roll)
@@ -101,7 +101,7 @@ class WiiNxtController(object):
           if (diff_r > 0.2 or diff_p > 0.2):
             self.last_roll,self.last_pitch = roll, pitch
             power = roll/(math.pi/2)*150
-            turn_ratio = max(-100,min(100,(pitch/(math.pi/2)*150)))
+            turn_ratio = max(-100,min(100,(pitch/(math.pi/2)*100)))
 
             left = power - turn_ratio
             right = power + turn_ratio
