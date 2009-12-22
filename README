@@ -1,3 +1,4 @@
+== Nxt Fuse Filesystem ==
 To mount an autodiscovered NXT brick:
 
-python fuse/nxt_fs.py <mount-point>
+python nxtools/fuse/nxt_fs.py <mount-point>
