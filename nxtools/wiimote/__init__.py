@@ -1,1 +1,2 @@
-__all__ = ['wiimote']
+
+from wii_nxt_cont import WiiNxtController
