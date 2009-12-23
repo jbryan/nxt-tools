@@ -4,7 +4,7 @@ import fuse
 from fuse import Fuse
 fuse.fuse_python_api = (0,2)
 
-from time import time
+from time import time, sleep
 
 import stat    # for file properties
 import os      # for filesystem modes (O_RDONLY, etc)
@@ -32,6 +32,9 @@ class NxtStat(fuse.Stat):
     self.st_mtime = 0
     self.st_ctime = 0
 
+class NxtFsException(Exception): 
+  pass
+
 class NxtFS(Fuse):
   """
   A Fuse based file system that allows for cached random access to 
@@ -39,6 +42,12 @@ class NxtFS(Fuse):
   """
 
   def __init__(self, *args, **kw):
+    if 'brick' in kw:
+      self._brick = kw['brick']
+      del(kw['brick']) #Fuse doesn't like extraneous args
+    else:
+      raise NxtFsException("No Brick Set")
+
     Fuse.__init__(self, *args, **kw)
 
     self.file_cache = {}
@@ -46,10 +55,6 @@ class NxtFS(Fuse):
 
     logging.debug('Looking for a brick')
 
-    sock = nxt.locator.find_one_brick()
-    logging.debug('Found %s, trying to connect..' % sock)
-    self._brick = sock.connect()
-    logging.info('Connected to %s' % sock)
 
   def getattr(self, path, *args):
     logging.debug("getattr(%s,%s)" % (path,str(args)))
@@ -238,9 +243,26 @@ class NxtFS(Fuse):
 
 if __name__ == "__main__":
   usage=" Nxt Filesystem \n" + Fuse.fusage
+  
+  # Find a brick
+  print "Searching for a brick."
+  sock = nxt.locator.find_one_brick()
+  print "Found brick: %s" % sock
+  try:
+    brick = sock.connect()
+  except:
+    # Sometimes, we need to wait a bit so the bt layer catches up
+    print "First connect attempt failed, waiting 2 secs."
+    sleep(2)
+    brick = sock.connect()
+  print "Connected to nxt ... starting file system."
+
   fs = NxtFS(version="%prog " + fuse.__version__,
              usage=usage,
-             dash_s_do='setsingle')
+             dash_s_do='setsingle',
+             brick=brick
+            )
+
   fs.multithreaded = 0
   fs.parse(errex=1)
   fs.main()

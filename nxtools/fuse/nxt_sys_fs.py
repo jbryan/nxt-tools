@@ -5,7 +5,7 @@ import fuse
 from fuse import Fuse
 fuse.fuse_python_api = (0,2)
 
-from time import time
+from time import time, sleep
 
 import stat    # for file properties
 import os      # for filesystem modes (O_RDONLY, etc)
@@ -167,9 +167,25 @@ class NxtSysFS(NxtFS):
 
 if __name__ == "__main__":
   usage=" Nxt Filesystem with /sys support \n" + Fuse.fusage
+
+  # Find a brick
+  print "Searching for a brick."
+  sock = nxt.locator.find_one_brick()
+  print "Found brick: %s" % sock
+  try:
+    brick = sock.connect()
+  except:
+    # Sometimes, we need to wait a bit so the bt layer catches up
+    print "First connect attempt failed, waiting 2 secs."
+    sleep(2)
+    brick = sock.connect()
+  print "Connected to nxt ... starting file system."
+
   fs = NxtSysFS(version="%prog " + fuse.__version__,
              usage=usage,
-             dash_s_do='setsingle')
+             dash_s_do='setsingle',
+             brick=brick
+            )
   fs.multithreaded = 0
   fs.parse(errex=1)
   fs.main()
