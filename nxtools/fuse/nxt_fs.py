@@ -135,6 +135,10 @@ class NxtFS(Fuse):
     else:
       stio, old_flags = self.file_cache[path]
       self.file_cache[path] = (stio, old_flags | flags)
+
+    if (flags & os.O_TRUNC):
+      self.ftruncate(path,0)
+
     return 0
 
   def write(self, path, buf, offset,*args):
@@ -175,11 +179,24 @@ class NxtFS(Fuse):
       del self.file_cache[path]
     return ret
 
-  def truncate(self, path, size,*args):
-    logging.debug("truncate(%s)"%path)
+  def truncate(self, path, size):
+    logging.debug("truncate(%s,%i)"%(path,size))
+    # we can't write empty files, so we simply open with O_TRUNC
+    return self.open(path, os.O_TRUNC | os.O_WRONLY)
+
+  def ftruncate(self, path, size,*args):
+    logging.debug("ftruncate(%s,%i)"%(path,size))
     if path in self.file_cache:
       stio, flags = self.file_cache[path]
       stio.truncate(size)
+    return 0
+
+  def utime(self, path, *args):
+    logging.debug("utime(%s)"%path)
+    return 0
+
+  def chmod(self, path, *args):
+    logging.debug("chmod(%s)"%path)
     return 0
 
   def mkdir(self, path, mode,*args):
@@ -223,6 +240,7 @@ class NxtFS(Fuse):
         """TODO: We could optimize for append here """
         if flags & (os.O_WRONLY | os.O_RDWR | os.O_APPEND):
           logging.debug("file is open and being flushed")
+          logging.debug(stio.buf)
           try:
             self._send_file(path,stio)
           except:
