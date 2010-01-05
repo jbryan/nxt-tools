@@ -55,15 +55,6 @@ class RSO(object):
     
       
 
-  def read_data(self,bus,message):
-    print "here"
-    if message.type == gst.MESSAGE_EOS:
-      file = os.fdopen(fd)
-      for line in file.readlines():
-        self.body += line
-      file.close()
-      os.unlink(tmpfile)
-      gstpl.set_state(gst.STATE_NULL)
     
 
 if __name__ == "__main__":
